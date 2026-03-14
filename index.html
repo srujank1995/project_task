@@ -1,13 +1,1205 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Task Board — Value Add (Enhanced, Theme Fixed)</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <!-- SheetJS (Excel export) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <!-- Chart.js for dashboard charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <!-- SortableJS for drag & drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
+  <!-- jsPDF for PDF export -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <style>
+    .task-card { transition: transform .1s ease-in-out, box-shadow .2s; }
+    .task-card:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .08); }
 
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>AI TaskFlow</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    /* =============== THEME-AWARE STATUS / SURFACE COLORS =============== */
+    .status-pill { font-weight: 600; }
+
+    .status-not-assigned {
+      background: color-mix(in oklab, var(--bs-primary-bg-subtle) 65%, transparent);
+      border-left: .375rem solid var(--bs-primary);
+    }
+    .status-assigned {
+      background: color-mix(in oklab, var(--bs-warning-bg-subtle) 70%, transparent);
+      border-left: .375rem solid var(--bs-warning);
+    }
+    .status-complete {
+      background: color-mix(in oklab, var(--bs-success-bg-subtle) 70%, transparent);
+      border-left: .375rem solid var(--bs-success);
+    }
+
+    .status-not-scheduled {
+      background: var(--bs-secondary-bg);
+      color: var(--bs-secondary-color) !important;
+      border-left: .375rem solid var(--bs-secondary);
+    }
+    .status-not-scheduled .form-text,
+    .status-not-scheduled .card-title,
+    .status-not-scheduled .text-muted {
+      color: var(--bs-secondary-color) !important;
+      opacity: .9;
+    }
+
+    /* Locked after completion */
+    .status-locked .form-select,
+    .status-locked .btn.user-only,
+    .status-locked .form-control,
+    .status-locked .form-check-input { pointer-events: none !important; opacity: 0.6; }
+
+    .card-footer-compact { padding: .5rem .75rem; background: var(--bs-tertiary-bg); }
+
+    .badge-muted { background: var(--bs-secondary-bg); color: var(--bs-emphasis-color); }
+
+    .audit-entry .meta { color: var(--bs-secondary-color); font-size: .9rem; }
+    .audit-entry .action { font-weight: 600; }
+
+    /* Priority badges */
+    .pri-high { background: var(--bs-danger) !important; }
+    .pri-med  { background: var(--bs-orange, #fd7e14) !important; }
+    .pri-low  { background: var(--bs-teal, #20c997) !important; }
+
+    /* Starred */
+    .starred .card-title::before { content: "\2605 "; color: #f5c518; }
+
+    /* Compact mode for mobile */
+    .compact .task-card .card-body { padding: .75rem; }
+    .compact .task-card .card-title { font-size: 1rem; }
+    .compact .card-footer-compact { padding: .25rem .5rem; }
+
+    /* Dashboard cards */
+    #dashboard .stat { min-width: 160px; }
+
+    /* Week grid */
+    #weekView .day-col { border-left: 1px solid var(--bs-border-color); }
+    #weekView .day-header { position: sticky; top: 0; background: var(--bs-body-bg); z-index: 1; }
+
+    /* Month grid */
+    #monthView .day-cell { min-height: 120px; border: 1px solid var(--bs-border-color); padding: .5rem; }
+    #monthView .day-number { font-weight: 600; opacity: .7; }
+
+    /* Comments */
+    .comment-item { border-left: 3px solid var(--bs-border-color); padding-left: .5rem; }
+
+    /* Toast close icon visibility in dark mode */
+    .toast .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+        <i class="bi bi-kanban-fill"></i>
+        <span>Project Task Board</span>
+      </a>
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <div class="d-none d-md-flex align-items-center gap-2 me-2">
+          <label for="selectedDate" class="text-white-50 small mb-0">Day</label>
+          <input type="date" class="form-control form-control-sm" style="width: 240px" id="selectedDate" />
+        </div>
+        <div class="btn-group me-2" role="group" aria-label="View switcher">
+          <button class="btn btn-outline-light btn-sm" id="viewDayBtn" title="Day view"><i class="bi bi-calendar-day"></i></button>
+          <button class="btn btn-outline-light btn-sm" id="viewWeekBtn" title="Week view"><i class="bi bi-calendar-week"></i></button>
+          <button class="btn btn-outline-light btn-sm" id="viewMonthBtn" title="Month view"><i class="bi bi-calendar-month"></i></button>
+          <button class="btn btn-outline-light btn-sm" id="viewListBtn" title="List view"><i class="bi bi-card-list"></i></button>
+        </div>
+        <span id="roleBadge" class="badge bg-dark-subtle text-white border border-light-subtle me-2">Role: User</span>
+        <button class="btn btn-outline-light btn-sm" id="supervisorSignInBtn"><i class="bi bi-person-badge"></i> Supervisor</button>
+        <button class="btn btn-outline-light btn-sm" id="adminSignInBtn"><i class="bi bi-shield-lock"></i> Admin</button>
+        <button class="btn btn-outline-light btn-sm d-none" id="signOutBtn"><i class="bi bi-box-arrow-right"></i> Sign Out</button>
+        <button class="btn btn-light btn-sm" id="themeToggleBtn" title="Toggle theme"><i class="bi bi-moon-stars"></i></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Toolbar -->
+  <header class="border-bottom bg-body">
+    <div class="container py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <button class="btn btn-primary d-none" id="addTaskBtn"><i class="bi bi-plus-lg"></i> Add Task</button>
+        <button class="btn btn-outline-primary d-none" id="addMemberBtn"><i class="bi bi-person-plus"></i> Add Team Member</button>
+        <button class="btn btn-outline-primary d-none" id="viewMembersBtn"><i class="bi bi-people"></i> View Members</button>
+        <button class="btn btn-outline-secondary d-none" id="dailySummaryBtn"><i class="bi bi-magic"></i> Daily Summary</button>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" class="form-control" id="searchInput" placeholder="Search tasks…" />
+        </div>
+        <button class="btn btn-success d-none" id="exportBtn"><i class="bi bi-download"></i> Export Excel</button>
+        <button class="btn btn-outline-success d-none" id="exportPdfBtn"><i class="bi bi-filetype-pdf"></i> PDF</button>
+        <div class="form-check form-switch ms-2">
+          <input class="form-check-input" type="checkbox" id="compactModeSwitch">
+          <label class="form-check-label small" for="compactModeSwitch">Compact</label>
+        </div>
+      </div>
+    </div>
+    <!-- Filters Row -->
+    <div class="border-top bg-body">
+      <div class="container py-2">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-3">
+            <label class="form-label mb-1">Filter: Assignment</label>
+            <select class="form-select form-select-sm" id="filterAssign">
+              <option value="all">All</option>
+              <option value="mine">Assigned to me</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+              <option value="completed">Completed</option>
+              <option value="scheduledToday">Scheduled Today</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label mb-1">Filter: Priority</label>
+            <select class="form-select form-select-sm" id="filterPriority">
+              <option value="all">All</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label mb-1">Sort</label>
+            <select class="form-select form-select-sm" id="sortSelect">
+              <option value="updated">Last Updated</option>
+              <option value="time">Time</option>
+              <option value="name">Name</option>
+              <option value="priority">Priority</option>
+              <option value="star">Starred first</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="onlyTodayCheck">
+              <label class="form-check-label" for="onlyTodayCheck">Only tasks scheduled today</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section id="dashboard" class="container my-3">
+    <div class="row g-3">
+      <div class="col-auto">
+        <div class="card stat">
+          <div class="card-body">
+            <div class="text-muted small">Total Tasks</div>
+            <div class="h4 mb-0" id="statTotal">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="card stat">
+          <div class="card-body">
+            <div class="text-muted small">Completed Today</div>
+            <div class="h4 mb-0" id="statCompletedToday">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="card stat">
+          <div class="card-body">
+            <div class="text-muted small">Assigned</div>
+            <div class="h4 mb-0" id="statAssigned">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="card stat">
+          <div class="card-body">
+            <div class="text-muted small">Unassigned</div>
+            <div class="h4 mb-0" id="statUnassigned">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg">
+        <div class="card">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-12 col-lg-6">
+                <canvas id="chartStatus" height="120"></canvas>
+              </div>
+              <div class="col-12 col-lg-6">
+                <canvas id="chartWorkload" height="120"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main class="container my-4">
+    <div id="emptyState" class="d-none text-center text-muted py-5">
+      <i class="bi bi-inboxes display-5 d-block mb-3"></i>
+      <p class="lead mb-0">No tasks yet. <span class="d-none admin-only">Use <strong>Add Task</strong> to create your first task.</span></p>
+    </div>
+    <div id="listView" class="">
+      <div id="taskGrid" class="row g-3"></div>
+    </div>
+    <div id="weekView" class="d-none">
+      <div class="row g-0 border rounded overflow-hidden">
+        <!-- 7 columns for week -->
+        <div class="col day-col" data-day="0"><div class="p-2 day-header fw-semibold">Sun</div><div class="p-2" id="weekCol0"></div></div>
+        <div class="col day-col" data-day="1"><div class="p-2 day-header fw-semibold">Mon</div><div class="p-2" id="weekCol1"></div></div>
+        <div class="col day-col" data-day="2"><div class="p-2 day-header fw-semibold">Tue</div><div class="p-2" id="weekCol2"></div></div>
+        <div class="col day-col" data-day="3"><div class="p-2 day-header fw-semibold">Wed</div><div class="p-2" id="weekCol3"></div></div>
+        <div class="col day-col" data-day="4"><div class="p-2 day-header fw-semibold">Thu</div><div class="p-2" id="weekCol4"></div></div>
+        <div class="col day-col" data-day="5"><div class="p-2 day-header fw-semibold">Fri</div><div class="p-2" id="weekCol5"></div></div>
+        <div class="col day-col" data-day="6"><div class="p-2 day-header fw-semibold">Sat</div><div class="p-2" id="weekCol6"></div></div>
+      </div>
+    </div>
+    <div id="monthView" class="d-none">
+      <div id="monthGrid" class="row g-0"></div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-top py-3 bg-body">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center">
+      <small class="text-muted">© <span id="year"></span> Task Board · Built with Bootstrap</small>
+      <div class="text-muted small">
+        <i class="bi bi-circle-fill text-primary"></i> Light blue: Not assigned
+        <span class="mx-1">·</span>
+        <i class="bi bi-circle-fill text-warning"></i> Yellow: Assigned
+        <span class="mx-1">·</span>
+        <i class="bi bi-circle-fill text-success"></i> Green: Complete
+        <span class="mx-1">·</span>
+        <i class="bi bi-circle-fill text-secondary"></i> Dark gray: Not scheduled
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toasts -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <!-- Modals (Admin, Supervisor, Task, Audit, Members, Summary, Confirm Delete) -->
+  <!-- Admin Login Modal -->
+  <div class="modal fade" id="adminModal" tabindex="-1" aria-labelledby="adminModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title" id="adminModalLabel"><i class="bi bi-shield-lock"></i> Admin Sign In</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="adminPass" class="form-label">Enter Admin Passcode</label>
+            <input type="password" class="form-control" id="adminPass" placeholder="e.g., ADMIN123" />
+            <div class="form-text">Demo passcode is front-end only. Integrate your IdP for production.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="adminLoginConfirm">Sign In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supervisor Login Modal -->
+  <div class="modal fade" id="supervisorModal" tabindex="-1" aria-labelledby="supervisorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title" id="supervisorModalLabel"><i class="bi bi-person-badge"></i> Supervisor Sign In</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="supervisorPass" class="form-label">Enter Supervisor Passcode</label>
+            <input type="password" class="form-control" id="supervisorPass" placeholder="e.g., SUPERVISOR123" />
+            <div class="form-text">Demo passcode is front-end only. Integrate your IdP for production.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="supervisorLoginConfirm">Sign In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Task Modal -->
+  <div class="modal fade" id="taskModal" tabindex="-1" aria-labelledby="taskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title" id="taskModalLabel"><i class="bi bi-list-task"></i> Task</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="taskForm">
+            <input type="hidden" id="taskId" />
+            <div class="mb-3">
+              <label for="taskName" class="form-label">Task Name</label>
+              <input type="text" class="form-control" id="taskName" required maxlength="120" />
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Scheduled Days</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <!-- 0=Sun ... 6=Sat -->
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day0" value="0"><label class="form-check-label" for="day0">Sun</label></div>
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day1" value="1"><label class="form-check-label" for="day1">Mon</label></div>
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day2" value="2"><label class="form-check-label" for="day2">Tue</label></div>
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day3" value="3"><label class="form-check-label" for="day3">Wed</label></div>
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day4" value="4"><label class="form-check-label" for="day4">Thu</label></div>
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day5" value="5"><label class="form-check-label" for="day5">Fri</label></div>
+                  <div class="form-check"><input class="form-check-input day-check" type="checkbox" id="day6" value="6"><label class="form-check-label" for="day6">Sat</label></div>
+                </div>
+                <div class="form-text">Admin/Supervisor can edit days even when a task isn’t currently scheduled.</div>
+              </div>
+              <div class="col-md-3">
+                <label for="timeFrom" class="form-label">Time From</label>
+                <input type="time" class="form-control" id="timeFrom" />
+              </div>
+              <div class="col-md-3">
+                <label for="timeTo" class="form-label">Time To</label>
+                <input type="time" class="form-control" id="timeTo" />
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-3">
+                <label class="form-label">Priority</label>
+                <select class="form-select" id="prioritySelect">
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Repeat</label>
+                <select class="form-select" id="repeatSelect">
+                  <option value="weekly">Weekly</option>
+                  <option value="none">None</option>
+                  <option value="monthly">Monthly (day)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Monthly Day</label>
+                <input type="number" min="1" max="31" class="form-control" id="monthlyDayInput" placeholder="e.g., 15" />
+                <div class="form-text">Used only when Repeat = Monthly</div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="notifyToggle">
+                  <label class="form-check-label" for="notifyToggle">Enable Reminder</label>
+                </div>
+              </div>
+            </div>
+            <hr/>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Checklist / Subtasks</label>
+                <div id="subtasksList" class="list-group mb-2"></div>
+                <div class="input-group">
+                  <input type="text" id="newSubtaskText" class="form-control" placeholder="Add subtask...">
+                  <button class="btn btn-outline-secondary" type="button" id="addSubtaskBtn"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Comments</label>
+                <div id="commentsList" class="vstack gap-2 mb-2"></div>
+                <div class="input-group">
+                  <input type="text" id="newCommentText" class="form-control" placeholder="Add comment...">
+                  <button class="btn btn-outline-secondary" type="button" id="addCommentBtn"><i class="bi bi-send"></i></button>
+                </div>
+              </div>
+            </div>
+            <hr/>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Attachments</label>
+                <input class="form-control" type="file" id="attachInput" multiple />
+                <div class="form-text">Small files only; stored locally. For large files, attach links in comments.</div>
+                <ul id="attachList" class="list-group mt-2"></ul>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Assignment (preview)</label>
+                <select class="form-select" id="assignPreview">
+                  <option value="">— Select member —</option>
+                </select>
+                <div class="form-text">You can also assign from card controls after saving.</div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="saveTaskBtn">Save Task</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audit Trail Modal (Admin/Supervisor) -->
+  <div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title" id="auditModalLabel"><i class="bi bi-clock-history"></i> Audit Trail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="auditTaskName" class="fw-semibold mb-2"></div>
+          <div class="d-flex gap-2 mb-2">
+            <select id="auditFilter" class="form-select form-select-sm" style="max-width:220px">
+              <option value="all">All actions</option>
+              <option value="created">Created</option>
+              <option value="edited">Edited</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+              <option value="completed">Completed</option>
+              <option value="reopened">Reopened</option>
+              <option value="timer">Time Log</option>
+            </select>
+            <button class="btn btn-outline-success btn-sm" id="exportAuditBtn"><i class="bi bi-download"></i> Export Audit</button>
+          </div>
+          <ul id="auditList" class="list-group"></ul>
+          <div id="auditEmpty" class="text-muted text-center py-4 d-none">
+            <i class="bi bi-journal-text display-6 d-block mb-2"></i>
+            No audit entries yet for this task.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Member Modal (Admin) -->
+  <div class="modal fade" id="addMemberModal" tabindex="-1" aria-labelledby="addMemberModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addMemberModalLabel"><i class="bi bi-person-plus"></i> Add Team Member</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <label for="memberName" class="form-label">Member Name</label>
+          <input type="text" class="form-control" id="memberName" maxlength="80" placeholder="Enter full name" />
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="saveMemberBtn"><i class="bi bi-plus-lg"></i> Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Members Modal (Admin) -->
+  <div class="modal fade" id="viewMembersModal" tabindex="-1" aria-labelledby="viewMembersModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title" id="viewMembersModalLabel"><i class="bi bi-people"></i> Team Members</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <ul id="memberList" class="list-group"></ul>
+          <div id="memberEmpty" class="text-muted text-center py-4 d-none">
+            <i class="bi bi-emoji-neutral display-6 d-block mb-2"></i>
+            No members yet.
+          </div>
+          <div class="form-text mt-2">Removing a member will unassign them from any tasks where they are assigned.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily Summary Modal -->
+  <div class="modal fade" id="summaryModal" tabindex="-1" aria-labelledby="summaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="summaryModalLabel"><i class="bi bi-clipboard2-data"></i> Daily Summary</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <pre class="small" id="summaryText"></pre>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-outline-secondary" id="copySummaryBtn"><i class="bi bi-clipboard"></i> Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal (for tasks) -->
+  <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-trash3"></i> Confirm Deletion</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          Are you sure you want to delete <strong id="deleteTargetName"></strong>?
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+          crossorigin="anonymous"></script>
+
+  <script>
+  (function () {
+    'use strict';
+    // ======= Constants & Utilities =======
+    const STORAGE_KEYS = {
+      TASKS: 'taskboard.tasks.v3', // extended schema
+      MEMBERS: 'taskboard.members.v1',
+      ROLE: 'taskboard.role.v2',
+      THEME: 'taskboard.theme.v1',
+      ORDER: 'taskboard.order.v1'
+    };
+    const ADMIN_PASS = 'ADMIN123'; // Demo only
+    const SUPERVISOR_PASS = 'SUPERVISOR123'; // Demo only
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    function toast(message, variant='primary'){
+      const container = document.getElementById('toastContainer');
+      const id = 'toast-' + Date.now();
+      const el = document.createElement('div');
+      el.className = `toast align-items-center text-bg-${variant} border-0`;
+      el.id = id; el.role = 'alert'; el.ariaLive='assertive'; el.ariaAtomic='true';
+      el.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+      container.appendChild(el);
+      const t = new bootstrap.Toast(el, { delay: 2200 }); t.show();
+      el.addEventListener('hidden.bs.toast', ()=> el.remove());
+    }
+    function load(key, fallback){ try{ const v = localStorage.getItem(key); return v? JSON.parse(v): fallback; } catch(_){ return fallback; } }
+    function save(key, data){ localStorage.setItem(key, JSON.stringify(data)); }
+    function formatTime(hhmm){ if(!hhmm) return ''; const [h,m]=hhmm.split(':').map(Number); const s=h>=12?'PM':'AM'; const hr=((h+11)%12+1); return `${String(hr).padStart(2,'0')}:${String(m).padStart(2,'0')} ${s}`; }
+
+    // Theme-aware colors for charts
+    function getThemeAwareChartColors(){
+      const csDoc = getComputedStyle(document.documentElement);
+      const csBody = getComputedStyle(document.body);
+      const text = csDoc.getPropertyValue('--bs-emphasis-color').trim() || '#212529';
+      const grid = csDoc.getPropertyValue('--bs-border-color').trim() || '#dee2e6';
+      const success = csBody.getPropertyValue('--bs-success').trim() || '#198754';
+      const warning = csBody.getPropertyValue('--bs-warning').trim() || '#ffc107';
+      const primary = csBody.getPropertyValue('--bs-primary').trim() || '#0d6efd';
+      const info = csBody.getPropertyValue('--bs-info').trim() || '#0dcaf0';
+      return { text, grid, success, warning, primary, info };
+    }
+
+    // ======= Audit Helpers =======
+    function ensureAuditArray(task){ if(!task.audit) task.audit=[]; }
+    function pushAudit(task, action, details=''){ ensureAuditArray(task); task.audit.push({ at: Date.now(), by: state.role, action, details }); task.updatedAt=Date.now(); }
+    function auditActionLabel(a){ const map={ created:'Created', edited:'Edited', assigned:'Assigned', unassigned:'Unassigned', completed:'Completed', reopened:'Reopened', timer:'Time Log' }; return map[a] || a; }
+
+    // ======= State =======
+    let state = {
+      role: load(STORAGE_KEYS.ROLE, 'user'), // 'user' | 'supervisor' | 'admin'
+      members: load(STORAGE_KEYS.MEMBERS, []),
+      tasks: load(STORAGE_KEYS.TASKS, []),
+      theme: load(STORAGE_KEYS.THEME, 'light'),
+      order: load(STORAGE_KEYS.ORDER, [])
+    };
+
+    // ======= Seed =======
+    function seedIfNeeded(){
+      if(!state.members.length){ state.members = ['Asha','Raj','Priya','Kiran','Vivek']; save(STORAGE_KEYS.MEMBERS,state.members); }
+      if(!state.tasks.length){
+        const weekdays=[1,2,3,4,5];
+        const s=[
+          seedTask('Data Extraction', weekdays, '09:00', '10:00', 'high'),
+          seedTask('Quality Check', weekdays, '10:00','11:00','medium'),
+          seedTask('Report Draft', weekdays, '11:00','12:00','medium'),
+          seedTask('Client Review Prep', weekdays, '14:00','15:00','high'),
+          seedTask('Final Submission', weekdays, '16:00','17:00','high')
+        ];
+        state.tasks = s; state.order = s.map(t=>t.id);
+        save(STORAGE_KEYS.TASKS, state.tasks); save(STORAGE_KEYS.ORDER, state.order);
+      } else {
+        // migrate schema
+        state.tasks.forEach(t=>{
+          ensureAuditArray(t);
+          if(!('priority' in t)) t.priority='medium';
+          if(!('subtasks' in t)) t.subtasks=[];
+          if(!('comments' in t)) t.comments=[];
+          if(!('attachments' in t)) t.attachments=[];
+          if(!('starred' in t)) t.starred=false;
+          if(!('repeat' in t)) t.repeat='weekly';
+          if(!('monthlyDay' in t)) t.monthlyDay=null;
+          if(!('notify' in t)) t.notify=false;
+          if(!('timeLogs' in t)) t.timeLogs=[];
+        });
+        if(!Array.isArray(state.order) || !state.order.length){ state.order = state.tasks.map(t=>t.id); }
+      }
+    }
+    function seedTask(name, days, timeFrom, timeTo, priority='medium'){
+      const t={ id: crypto.randomUUID(), name, assignedTo:'', status:'not_assigned', days, timeFrom, timeTo, updatedAt: Date.now(), audit:[], priority, subtasks:[], comments:[], attachments:[], starred:false, repeat:'weekly', monthlyDay:null, notify:false, timeLogs:[] };
+      pushAudit(t,'created', `Task created with days: ${days.map(d=>dayNames[d]).join(', ')}; time: ${formatTime(timeFrom)}–${formatTime(timeTo)}`);
+      return t;
+    }
+    seedIfNeeded();
+
+    // ======= Elements =======
+    const roleBadge=$('#roleBadge');
+    const adminSignInBtn=$('#adminSignInBtn');
+    const supervisorSignInBtn=$('#supervisorSignInBtn');
+    const signOutBtn=$('#signOutBtn');
+    const addTaskBtn=$('#addTaskBtn');
+    const addMemberBtn=$('#addMemberBtn');
+    const viewMembersBtn=$('#viewMembersBtn');
+    const dailySummaryBtn=$('#dailySummaryBtn');
+    const exportBtn=$('#exportBtn');
+    const exportPdfBtn=$('#exportPdfBtn');
+    const taskGrid=$('#taskGrid');
+    const emptyState=$('#emptyState');
+    const selectedDate=$('#selectedDate');
+    const searchInput=$('#searchInput');
+    const filterAssign=$('#filterAssign');
+    const filterPriority=$('#filterPriority');
+    const sortSelect=$('#sortSelect');
+    const onlyTodayCheck=$('#onlyTodayCheck');
+    const listView=$('#listView');
+    const weekView=$('#weekView');
+    const monthView=$('#monthView');
+    const themeToggleBtn=$('#themeToggleBtn');
+    const compactModeSwitch=$('#compactModeSwitch');
+
+    // Dashboard
+    const statTotal=$('#statTotal');
+    const statCompletedToday=$('#statCompletedToday');
+    const statAssigned=$('#statAssigned');
+    const statUnassigned=$('#statUnassigned');
+    let chartStatus, chartWorkload;
+
+    // Modals
+    const adminModal=new bootstrap.Modal('#adminModal');
+    const adminPass=$('#adminPass');
+    const adminLoginConfirm=$('#adminLoginConfirm');
+    const supervisorModal=new bootstrap.Modal('#supervisorModal');
+    const supervisorPass=$('#supervisorPass');
+    const supervisorLoginConfirm=$('#supervisorLoginConfirm');
+
+    const taskModal=new bootstrap.Modal('#taskModal');
+    const taskForm=$('#taskForm');
+    const taskModalLabel=$('#taskModalLabel');
+    const taskIdInput=$('#taskId');
+    const taskNameInput=$('#taskName');
+    const timeFromInput=$('#timeFrom');
+    const timeToInput=$('#timeTo');
+    const prioritySelect=$('#prioritySelect');
+    const repeatSelect=$('#repeatSelect');
+    const monthlyDayInput=$('#monthlyDayInput');
+    const notifyToggle=$('#notifyToggle');
+    const subtasksList=$('#subtasksList');
+    const addSubtaskBtn=$('#addSubtaskBtn');
+    const newSubtaskText=$('#newSubtaskText');
+    const commentsList=$('#commentsList');
+    const addCommentBtn=$('#addCommentBtn');
+    const newCommentText=$('#newCommentText');
+    const attachInput=$('#attachInput');
+    const attachList=$('#attachList');
+    const assignPreview=$('#assignPreview');
+
+    const auditModal=new bootstrap.Modal('#auditModal');
+    const auditTaskName=$('#auditTaskName');
+    const auditList=$('#auditList');
+    const auditEmpty=$('#auditEmpty');
+    const auditFilter=$('#auditFilter');
+    const exportAuditBtn=$('#exportAuditBtn');
+
+    const addMemberModal=new bootstrap.Modal('#addMemberModal');
+    const memberNameInput=$('#memberName');
+    const saveMemberBtn=$('#saveMemberBtn');
+    const viewMembersModal=new bootstrap.Modal('#viewMembersModal');
+    const memberList=$('#memberList');
+    const memberEmpty=$('#memberEmpty');
+
+    const confirmDeleteModal=new bootstrap.Modal('#confirmDeleteModal');
+    const deleteTargetName=$('#deleteTargetName');
+    const confirmDeleteBtn=$('#confirmDeleteBtn');
+
+    const summaryModal=new bootstrap.Modal('#summaryModal');
+    const summaryText=$('#summaryText');
+    const copySummaryBtn=$('#copySummaryBtn');
+
+    // View buttons
+    const viewDayBtn=$('#viewDayBtn');
+    const viewWeekBtn=$('#viewWeekBtn');
+    const viewMonthBtn=$('#viewMonthBtn');
+    const viewListBtn=$('#viewListBtn');
+
+    // ======= Role & UI Toggles =======
+    function applyRole(){
+      const isAdmin = state.role==='admin';
+      const isSupervisor = state.role==='supervisor';
+      roleBadge.textContent = `Role: ${isAdmin? 'Admin': isSupervisor? 'Supervisor':'User'}`;
+      roleBadge.className = `badge ${isAdmin? 'bg-danger-subtle text-dark': isSupervisor? 'bg-warning-subtle text-dark': 'bg-dark-subtle text-white'}`;
+      adminSignInBtn.classList.toggle('d-none', isAdmin);
+      supervisorSignInBtn.classList.toggle('d-none', isSupervisor||isAdmin);
+      signOutBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+      addTaskBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+      addMemberBtn.classList.toggle('d-none', !isAdmin);
+      viewMembersBtn.classList.toggle('d-none', !isAdmin);
+      dailySummaryBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+      exportBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+      exportPdfBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+      $$('.admin-only').forEach(el=> el.classList.toggle('d-none', !isAdmin));
+    }
+
+    // ======= Helpers =======
+    function isScheduledFor(task, date){
+      if(task.repeat==='monthly' && task.monthlyDay){ return date.getDate()===Number(task.monthlyDay); }
+      return task.days.includes(date.getDay());
+    }
+    function statusClass(task, date){
+      if(!isScheduledFor(task, date)) return 'status-not-scheduled';
+      if(task.status==='complete') return 'status-complete';
+      if(task.assignedTo) return 'status-assigned';
+      return 'status-not-assigned';
+    }
+    function statusLabel(task, date){
+      if(!isScheduledFor(task, date)) return 'Not Scheduled Today';
+      if(task.status==='complete') return 'Complete';
+      if(task.assignedTo) return 'Assigned';
+      return 'Not Assigned';
+    }
+    function filterTasksBySearch(tasks, term){ if(!term) return tasks; const q=term.trim().toLowerCase(); return tasks.filter(t => t.name.toLowerCase().includes(q) || (t.assignedTo||'').toLowerCase().includes(q)); }
+    function persist(){ save(STORAGE_KEYS.TASKS, state.tasks); save(STORAGE_KEYS.MEMBERS, state.members); save(STORAGE_KEYS.ROLE, state.role); save(STORAGE_KEYS.THEME, state.theme); save(STORAGE_KEYS.ORDER, state.order); }
+
+    function priorityOrder(p){ return p==='high'?0: p==='medium'?1:2; }
+
+    function autoAssignHeuristic(task){
+      const today=new Date(selectedDate.value); let counts={}; for(const m of state.members) counts[m]=0;
+      for(const t of state.tasks){ if(t.assignedTo && isScheduledFor(t,today) && t.status!=='complete'){ counts[t.assignedTo]=(counts[t.assignedTo]||0)+1; } }
+      let best=null, min=Infinity; for(const m of state.members){ const c=counts[m]||0; if(c<min){ min=c; best=m; } } return best;
+    }
+
+    // ======= Rendering =======
+    function render(){
+      document.body.classList.toggle('compact', compactModeSwitch.checked);
+      const date = new Date(selectedDate.value);
+      let tasks = filterTasksBySearch(state.tasks.slice(), searchInput.value);
+
+      // Filters
+      tasks = tasks.filter(t => {
+        if(filterPriority.value!=='all' && t.priority!==filterPriority.value) return false;
+        switch(filterAssign.value){
+          case 'mine': return t.assignedTo && t.assignedTo.toLowerCase()==='me';
+          case 'assigned': return !!t.assignedTo;
+          case 'unassigned': return !t.assignedTo && t.status!=='complete';
+          case 'completed': return t.status==='complete';
+          case 'scheduledToday': return isScheduledFor(t, date);
+          default: return true;
+        }
+      });
+      if(onlyTodayCheck.checked){ tasks = tasks.filter(t=> isScheduledFor(t, date)); }
+
+      // Sorting
+      const sort = sortSelect.value;
+      if(sort==='updated') tasks.sort((a,b)=> b.updatedAt - a.updatedAt);
+      else if(sort==='time') tasks.sort((a,b)=> (a.timeFrom||'')<(b.timeFrom||'')? -1:1);
+      else if(sort==='name') tasks.sort((a,b)=> a.name.localeCompare(b.name));
+      else if(sort==='priority') tasks.sort((a,b)=> priorityOrder(a.priority)-priorityOrder(b.priority));
+      else if(sort==='star') tasks.sort((a,b)=> (b.starred?1:0)-(a.starred?1:0));
+      else { const idx = Object.fromEntries(state.order.map((id,i)=>[id,i])); tasks.sort((a,b)=> (idx[a.id]??9999)-(idx[b.id]??9999)); }
+
+      renderListView(tasks, date);
+      renderWeekView(tasks);
+      renderMonthView(tasks);
+      updateDashboard(date);
+      scheduleNotifications(date);
+    }
+
+    function renderListView(tasks, date){
+      taskGrid.innerHTML = '';
+      if(!tasks.length){ emptyState.classList.remove('d-none'); } else { emptyState.classList.add('d-none'); }
+      const isAdmin = state.role==='admin';
+      const isSupervisor = state.role==='supervisor';
+      for(const task of tasks){
+        const scheduledToday = isScheduledFor(task, date);
+        const isComplete = task.status==='complete';
+        const isAssigned = !!task.assignedTo;
+        const col=document.createElement('div'); col.className='col-12 col-md-6 col-lg-4';
+        const card=document.createElement('div');
+        card.className=`card task-card ${statusClass(task,date)} ${isComplete?'status-locked':''} ${task.starred?'starred':''}`;
+        card.dataset.taskId=task.id;
+        const badge = `<span class=\"badge badge-muted status-pill\">${statusLabel(task,date)}</span>`;
+        const schDays = (task.repeat==='monthly' && task.monthlyDay)? `Day ${task.monthlyDay} of month` : (task.days||[]).map(d=>dayNames[d]).join(', ') || '—';
+        const timeRange = [formatTime(task.timeFrom), formatTime(task.timeTo)].filter(Boolean).join(' — ');
+        const priClass = task.priority==='high'? 'pri-high' : task.priority==='low'? 'pri-low':'pri-med';
+        const totalMinutes = task.timeLogs.reduce((s,log)=> s + (log.duration||0), 0);
+        const h=Math.floor(totalMinutes/60), m= totalMinutes%60;
+        card.innerHTML = `
+          <div class=\"card-body\">
+            <div class=\"d-flex justify-content-between align-items-start mb-1\">
+              <h5 class=\"card-title mb-1\">${task.name}</h5>
+              <div class=\"d-flex align-items-center gap-2\">
+                <span class=\"badge ${priClass}\" title=\"Priority\">${task.priority.toUpperCase()}</span>
+                ${badge}
+              </div>
+            </div>
+            <div class=\"mb-2\">
+              <div class=\"text-muted small\">
+                <i class=\"bi bi-calendar-week\"></i> <strong>Schedule:</strong> ${schDays}
+                ${timeRange? ` <i class=\"bi bi-clock\"></i> <strong>Time:</strong> ${timeRange}`: ''}
+              </div>
+            </div>
+            <div class=\"mb-2\">
+              <label class=\"form-label mb-1\">Assign to</label>
+              <select class=\"form-select form-select-sm assign-select\" aria-label=\"Select team member\" title=\"\">
+                <option value=\"\">— Select member —</option>
+                ${state.members.map(m=> `<option value=\"${m}\" ${task.assignedTo===m?'selected':''}>${m}</option>`).join('')}
+              </select>
+              <div class=\"form-text\">Users can assign; Completed button appears after assignment.</div>
+            </div>
+            <div class=\"d-flex flex-wrap gap-2 small\">
+              <span class=\"text-muted\">Updated: ${new Date(task.updatedAt).toLocaleString()}</span>
+              <span class=\"text-muted\">• Time logged: ${h}h ${m}m</span>
+              ${task.subtasks?.length? `<span class=\"text-muted\">• Subtasks: ${task.subtasks.filter(s=>s.done).length}/${task.subtasks.length}</span>`:''}
+            </div>
+          </div>
+          <div class=\"card-footer card-footer-compact d-flex justify-content-between align-items-center\">
+            <div class=\"btn-group\">
+              <button class=\"btn btn-outline-secondary btn-sm star-btn\" title=\"Star\"><i class=\"bi ${task.starred?'bi-star-fill':'bi-star'}\"></i></button>
+              <button class=\"btn btn-outline-secondary btn-sm timer-start-btn\" title=\"Start/Pause timer\"><i class=\"bi bi-stopwatch\"></i></button>
+              <button class=\"btn btn-outline-secondary btn-sm view-comments-btn\" title=\"Comments\"><i class=\"bi bi-chat\"></i></button>
+            </div>
+            <div class=\"btn-group\">
+              <button class=\"btn btn-success btn-sm mark-complete-btn user-only\" title=\"Mark task as completed\"><i class=\"bi bi-check2-circle\"></i> Completed</button>
+              <button class=\"btn btn-warning btn-sm reopen-btn\" title=\"Reopen task\"><i class=\"bi bi-arrow-counterclockwise\"></i> Reopen</button>
+              <button class=\"btn btn-outline-secondary btn-sm edit-task-btn admin-edit\" title=\"Edit task\"><i class=\"bi bi-pencil-square\"></i></button>
+              <button class=\"btn btn-outline-danger btn-sm delete-task-btn admin-edit\" title=\"Delete task\"><i class=\"bi bi-trash3\"></i></button>
+              <button class=\"btn btn-outline-info btn-sm history-btn admin-only\" title=\"View audit trail\"><i class=\"bi bi-clock-history\"></i> History</button>
+            </div>
+          </div>`;
+
+        const assignSelect = $('.assign-select', card);
+        const completeBtn = $('.mark-complete-btn', card);
+        const reopenBtn = $('.reopen-btn', card);
+        const editBtn = $('.edit-task-btn', card);
+        const deleteBtn = $('.delete-task-btn', card);
+        const historyBtn = $('.history-btn', card);
+        const starBtn = $('.star-btn', card);
+        const timerStartBtn = $('.timer-start-btn', card);
+        const viewCommentsBtn = $('.view-comments-btn', card);
+
+        const showCompleteForUser = (state.role==='user') && !isComplete && isAssigned && scheduledToday;
+        const showCompleteForPriv = (isAdmin||isSupervisor) && !isComplete;
+        completeBtn.classList.toggle('d-none', !(showCompleteForUser || showCompleteForPriv));
+        reopenBtn.classList.toggle('d-none', !((isAdmin||isSupervisor) && isComplete));
+        assignSelect.disabled = !scheduledToday || isComplete;
+        assignSelect.title = assignSelect.disabled ? (!scheduledToday ? 'Assignment disabled: task is not scheduled for the selected day' : 'Assignment disabled: task is completed') : 'Assign a member';
+        editBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+        deleteBtn.classList.toggle('d-none', !isAdmin);
+        historyBtn.classList.toggle('d-none', !(isAdmin||isSupervisor));
+
+        // Overdue highlight
+        if(scheduledToday && !isComplete && task.timeTo){
+          const now = new Date(); const sel = new Date(selectedDate.value);
+          if(now.toDateString()===sel.toDateString()){
+            const [th,tm] = task.timeTo.split(':').map(Number);
+            const limit = new Date(sel.getFullYear(), sel.getMonth(), sel.getDate(), th, tm);
+            if(now>limit){ card.classList.add('border-danger'); }
+          }
+        }
+
+        // Events
+        assignSelect.addEventListener('change', ()=>{
+          const prev = task.assignedTo || '';
+          const val = assignSelect.value; task.assignedTo = val || '';
+          if(task.status!=='complete'){ task.status = task.assignedTo? 'assigned':'not_assigned'; }
+          if(task.assignedTo && task.assignedTo!==prev){ pushAudit(task,'assigned',`Assigned to ${task.assignedTo}`); }
+          else if(!task.assignedTo && prev){ pushAudit(task,'unassigned','Assignment cleared'); }
+          persist(); toast(`Task “${task.name}” ${task.assignedTo? 'assigned to '+task.assignedTo : 'unassigned'}.`,'primary'); render();
+        });
+        completeBtn.addEventListener('click', ()=>{
+          if(task.status==='complete') return;
+          task.status='complete'; task.completedAt=Date.now(); pushAudit(task,'completed','Marked complete'); persist(); toast(`Task “${task.name}” marked complete.`,'success'); render();
+        });
+        reopenBtn.addEventListener('click', ()=>{
+          if(task.status!=='complete') return; task.status = task.assignedTo? 'assigned':'not_assigned'; delete task.completedAt; pushAudit(task,'reopened','Reopened from completed status'); persist(); toast(`Task “${task.name}” reopened.`,'warning'); render();
+        });
+        editBtn.addEventListener('click', ()=> openTaskModal(task));
+        deleteBtn.addEventListener('click', ()=> openDeleteModal(task));
+        historyBtn.addEventListener('click', ()=> openAuditModal(task));
+        starBtn.addEventListener('click', ()=>{ task.starred = !task.starred; task.updatedAt=Date.now(); persist(); render(); });
+        timerStartBtn.addEventListener('click', ()=> toggleTimer(task));
+        viewCommentsBtn.addEventListener('click', ()=> openTaskModal(task));
+
+        taskGrid.appendChild(col).appendChild(card);
+      }
+
+      // Drag & drop ordering
+      new Sortable(taskGrid, {
+        animation: 150,
+        handle: '.card',
+        onEnd: function(){
+          const ids = $$('#taskGrid .card').map(c=> c.dataset.taskId);
+          state.order = ids; persist();
+        }
+      });
+    }
+
+    function renderWeekView(tasks){
+      for(let i=0;i<7;i++){ const col=$('#weekCol'+i); if(col) col.innerHTML=''; }
+      const today = new Date(selectedDate.value);
+      for(const t of tasks){
+        for(const d of [0,1,2,3,4,5,6]){
+          if((t.repeat==='monthly' && t.monthlyDay) ? false : t.days.includes(d)){
+            const card=document.createElement('div'); card.className='card card-body p-2 mb-2';
+            card.innerHTML = `<div class="d-flex justify-content-between"><span>${t.name}</span><span class="badge ${t.priority==='high'?'pri-high':t.priority==='low'?'pri-low':'pri-med'}">${t.priority}</span></div><div class="text-muted small">${[formatTime(t.timeFrom),formatTime(t.timeTo)].filter(Boolean).join(' – ')}</div>`;
+            $('#weekCol'+d).appendChild(card);
+          }
+        }
+        if(t.repeat==='monthly' && t.monthlyDay===today.getDate()){
+          const d=today.getDay();
+          const card=document.createElement('div'); card.className='card card-body p-2 mb-2';
+          card.innerHTML=`<div class="d-flex justify-content-between"><span>${t.name}</span><span class="badge ${t.priority==='high'?'pri-high':t.priority==='low'?'pri-low':'pri-med'}">${t.priority}</span></div><div class="text-muted small">${[formatTime(t.timeFrom),formatTime(t.timeTo)].filter(Boolean).join(' – ')}</div>`;
+          $('#weekCol'+d).appendChild(card);
+        }
+      }
+    }
+
+    function renderMonthView(tasks){
+      const grid=$('#monthGrid'); grid.innerHTML='';
+      const sel = new Date(selectedDate.value); const year=sel.getFullYear(), month=sel.getMonth();
+      const first = new Date(year, month, 1); const startDow = first.getDay();
+      const daysInMonth = new Date(year, month+1, 0).getDate();
+      const totalCells = Math.ceil((startDow + daysInMonth)/7)*7;
+      for(let idx=0; idx<totalCells; idx++){
+        const dayNum = idx - startDow + 1;
+        const col = document.createElement('div'); col.className='col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2';
+        const cell=document.createElement('div'); cell.className='day-cell';
+        if(dayNum>=1 && dayNum<=daysInMonth){
+          const header=document.createElement('div'); header.className='day-number'; header.textContent=dayNum; cell.appendChild(header);
+          const dayDate=new Date(year, month, dayNum);
+          const list=document.createElement('div');
+          for(const t of tasks){
+            if( (t.repeat==='monthly' && Number(t.monthlyDay)===dayNum) || (t.repeat!=='monthly' && t.days.includes(dayDate.getDay())) ){
+              const item=document.createElement('div'); item.className='small text-truncate';
+              item.innerHTML = `<i class="bi bi-circle-fill ${t.status==='complete'?'text-success': t.assignedTo?'text-warning':'text-primary'}"></i> ${t.name}`;
+              list.appendChild(item);
+            }
+          }
+          cell.appendChild(list);
+        }
+        col.appendChild(cell); grid.appendChild(col);
+      }
+    }
+
+    function updateDashboard(date){
+      const t = state.tasks;
+      statTotal.textContent = t.length;
+      statAssigned.textContent = t.filter(x=>x.assignedTo && x.status!=='complete').length;
+      statUnassigned.textContent = t.filter(x=>!x.assignedTo && x.status!=='complete').length;
+      statCompletedToday.textContent = t.filter(x=> x.status==='complete' && new Date(x.completedAt||0).toDateString()===date.toDateString()).length;
+
+      const ctx1 = $('#chartStatus'); const ctx2 = $('#chartWorkload');
+      const statusCounts = {
+        complete: t.filter(x=>x.status==='complete').length,
+        assigned: t.filter(x=>x.status!=='complete' && x.assignedTo).length,
+        not_assigned: t.filter(x=>x.status!=='complete' && !x.assignedTo).length
+      };
+      const workload = Object.fromEntries(state.members.map(m=>[m,0]));
+      for(const x of t){ if(x.assignedTo && x.status!=='complete'){ workload[x.assignedTo] = (workload[x.assignedTo]||0)+1; } }
+
+      const { text, grid, success, warning, primary, info } = getThemeAwareChartColors();
+
+      if(chartStatus) chartStatus.destroy();
+      chartStatus = new Chart(ctx1, { type:'doughnut', data:{ labels:['Complete','Assigned','Not Assigned'], datasets:[{ data:[statusCounts.complete, statusCounts.assigned, statusCounts.not_assigned], backgroundColor:[success, warning, primary] }] }, options:{ plugins:{ legend:{ position:'bottom', labels:{ color: text } } } } });
+
+      if(chartWorkload) chartWorkload.destroy();
+      chartWorkload = new Chart(ctx2, { type:'bar', data:{ labels:Object.keys(workload), datasets:[{ label:'Open tasks', data:Object.values(workload), backgroundColor:info }] }, options:{ plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:text }, grid:{ color:grid } }, y:{ beginAtZero:true, ticks:{ color:text }, grid:{ color:grid } } } } });
+    }
+
+    // ======= Notifications =======
+    function scheduleNotifications(date){
+      if(!('Notification' in window)) return;
+      if(Notification.permission==='default'){ Notification.requestPermission(); }
+      const now = new Date(); if(now.toDateString()!==date.toDateString()) return;
+      for(const t of state.tasks){
+        if(t.notify && isScheduledFor(t, date) && t.timeFrom){
+          const [h,m] = t.timeFrom.split(':').map(Number);
+          const at = new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m).getTime();
+          const delay = at - Date.now();
+          if(delay>0 && delay< 6*60*60*1000){
+            setTimeout(()=>{ if(Notification.permission==='granted') new Notification('Task Reminder', { body: `${t.name} starts now (${formatTime(t.timeFrom)})` }); }, delay);
+          }
+        }
+      }
+    }
+
+    // ======= Modals & Actions =======
+    function openTaskModal(task){
+      taskForm.reset(); $$('.day-check').forEach(cb=> cb.checked=false);
+      subtasksList.innerHTML=''; commentsList.innerHTML=''; attachList.innerHTML='';
+      assignPreview.innerHTML = '<option value="">— Select member —</option>' + state.members.map(m=>`<option value="${m}">${m}</option>`).join('');
+      if(task){
+        taskModalLabel.textContent='Edit Task';
+        taskIdInput.value = task.id; taskNameInput.value=task.name; timeFromInput.value=task.timeFrom||''; timeToInput.value=task.timeTo||''; prioritySelect.value=task.priority||'medium'; repeatSelect.value=task.repeat||'weekly'; monthlyDayInput.value = task.monthlyDay||''; notifyToggle.checked = !!task.notify;
+        (task.days||[]).forEach(d=>{ const cb=document.getElementById('day'+d); if(cb) cb.checked=true; });
+        assignPreview.value = task.assignedTo||'';
+        for(const s of task.subtasks){ const li=document.createElement('div'); li.className='list-group-item d-flex align-items-center justify-content-between'; li.innerHTML=`<div class="form-check"><input class="form-check-input sub-done" type="checkbox" ${s.done?'checked':''} data-id="${s.id}"> <label class="form-check-label">${s.text}</label></div><button class="btn btn-sm btn-outline-danger sub-del" data-id="${s.id}"><i class="bi bi-x"></i></button>`; subtasksList.appendChild(li); }
+        for(const c of task.comments){ const div=document.createElement('div'); div.className='comment-item'; div.innerHTML=`<div class="small">${c.text}</div><div class="text-muted small">${new Date(c.at).toLocaleString()} • ${c.by||'User'}</div>`; commentsList.appendChild(div); }
+        for(const a of task.attachments){ const li=document.createElement('li'); li.className='list-group-item d-flex justify-content-between align-items-center'; const size = a.size? ` (${Math.round(a.size/1024)} KB)` : ''; li.innerHTML=`<span>${a.name}${size}</span><div class="btn-group"><a class="btn btn-sm btn-outline-secondary" ${a.b64? `href="${a.b64}" download="${a.name}"`:'href="#"'}>${a.b64? 'Download':'N/A'}</a><button class="btn btn-sm btn-outline-danger attach-del" data-name="${a.name}"><i class="bi bi-x"></i></button></div>`; attachList.appendChild(li); }
+      } else {
+        taskModalLabel.textContent='Add Task'; taskIdInput.value=''; prioritySelect.value='medium'; repeatSelect.value='weekly'; notifyToggle.checked=false; monthlyDayInput.value='';
+      }
+      taskModal.show();
+    }
+
+    function collectTaskFromModal(){
+      const id = taskIdInput.value || crypto.randomUUID();
+      const name = taskNameInput.value.trim();
+      const days = $$('.day-check').filter(cb=> cb.checked).map(cb=> Number(cb.value));
+      const timeFrom = timeFromInput.value || '';
+      const timeTo = timeToInput.value || '';
+      const priority = prioritySelect.value || 'medium';
+      const repeat = repeatSelect.value || 'weekly';
+      const monthlyDay = monthlyDayInput.value? Number(monthlyDayInput.value) : null;
+      const notify = !!notifyToggle.checked;
+      if(!name){ toast('Task name is required.','danger'); return null; }
+      if(repeat==='monthly' && !monthlyDay){ toast('Please specify Monthly Day when Repeat = Monthly','warning'); return null; }
+      return { id, name, days, timeFrom, timeTo, priority, repeat, monthlyDay, notify, assignedTo: assignPreview.value||'' };
+    }
+
+    function logEditAudit(existing, updated){
+      const changes=[];
+      if(existing.name!==updated.name) changes.push(`name: “${existing.name}” → “${updated.name}”`);
+      if((existing.timeFrom||'')!==(updated.timeFrom||'')) changes.push(`timeFrom: ${formatTime(existing.timeFrom)} → ${formatTime(updated.timeFrom)}`);
+      if((existing.timeTo||'')!==(updated.timeTo||'')) changes.push(`timeTo: ${formatTime(existing.timeTo)} → ${formatTime(updated.timeTo)}`);
+      const oldDays=(existing.days||[]).slice().sort().join(','); const newDays=(updated.days||[]).slice().sort().join(','); if(oldDays!==newDays) changes.push(`days: [${(existing.days||[]).map(d=>dayNames[d]).join(', ')}] → [${(updated.days||[]).map(d=>dayNames[d]).join(', ')}]`);
+      if((existing.priority||'medium')!==(updated.priority||'medium')) changes.push(`priority: ${existing.priority} → ${updated.priority}`);
+      if((existing.repeat||'weekly')!==(updated.repeat||'weekly')) changes.push(`repeat: ${existing.repeat} → ${updated.repeat}`);
+      if((existing.monthlyDay||'')!==(updated.monthlyDay||'')) changes.push(`monthlyDay: ${existing.monthlyDay} → ${updated.monthlyDay}`);
+      if((existing.notify||false)!==(updated.notify||false)) changes.push(`notify: ${existing.notify} → ${updated.notify}`);
+      if(changes.length) pushAudit(existing,'edited', changes.join('; '));
+    }
+
+    function openDeleteModal(task){ deleteTargetName.textContent=task.name; confirmDeleteBtn.dataset.taskId=task.id; confirmDeleteModal.show(); }
+
+    // ======= Audit Modal =======
+    function openAuditModal(task){
+      if(state.role==='user'){ toast('History is available to Supervisor/Admin only.','secondary'); return; }
+      auditTaskName.textContent = task.name; auditList.innerHTML='';
+      const items=(task.audit||[]).slice().sort((a,b)=> b.at-a.at);
+      const selected = auditFilter.value; const filtered = items.filter(e=> selected==='all'? true: e.action===selected);
+      if(!filtered.length){ auditEmpty.classList.remove('d-none'); } else { auditEmpty.classList.add('d-none'); }
+      for(const e of filtered){ const li=document.createElement('li'); li.className='list-group-item audit-entry'; li.innerHTML=`<div class="action">${auditActionLabel(e.action)}</div><div class="meta">By: ${e.by==='admin'?'Admin': e.by==='supervisor'?'Supervisor':'User'} • ${new Date(e.at).toLocaleString()}</div>${e.details? `<div class="mt-1">${e.details}</div>`:''}`; auditList.appendChild(li); }
+      auditModal._task = task; auditModal.show();
+    }
+    auditFilter.addEventListener('change', ()=>{ if(auditModal._task) openAuditModal(auditModal._task); });
+
+    // ======= Members (Admin) =======
+    function renderMemberList(){
+      memberList.innerHTML=''; if(!state.members.length){ memberEmpty.classList.remove('d-none'); return; } memberEmpty.classList.add('d-none');
+      for(const name of state.members){ const li=document.createElement('li'); li.className='list-group-item d-flex justify-content-between align-items-center'; li.innerHTML=`<span>${name}</span><button class="btn btn-sm btn-outline-danger remove-member-btn" data-member="${name}" title="Remove member"><i class="bi bi-trash3"></i></button>`; memberList.appendChild(li); }
+    }
+    function removeMember(memberName){ if(!memberName) return; let affected=0; for(const t of state.tasks){ if(t.assignedTo===memberName){ t.assignedTo=''; if(t.status!=='complete') t.status='not_assigned'; pushAudit(t,'unassigned',`Member “${memberName}” removed; task unassigned`); affected++; } } state.members = state.members.filter(m=> m!==memberName); persist(); render(); renderMemberList(); toast(`Member “${memberName}” removed.${affected? ' Unassigned from '+affected+' task(s).':''}`,'secondary'); }
+
+    // ======= Excel/PDF Export =======
+    function exportExcel(){
+      const date=new Date(selectedDate.value);
+      const data = state.tasks.map(t=> ({ 'Task Name': t.name, 'Priority': t.priority.toUpperCase(), 'Status (Today)': statusLabel(t,date), 'Assigned To': t.assignedTo||'', 'Scheduled Days': (t.repeat==='monthly' && t.monthlyDay)? `Monthly:${t.monthlyDay}`: (t.days||[]).map(d=>dayNames[d]).join(', '), 'Time From': formatTime(t.timeFrom), 'Time To': formatTime(t.timeTo), 'Last Updated': new Date(t.updatedAt).toLocaleString(), 'Starred': t.starred? 'Yes':'No' }));
+      const wb=XLSX.utils.book_new(); const ws=XLSX.utils.json_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+      const logs=[]; for(const t of state.tasks){ for(const l of t.timeLogs){ logs.push({ 'Task': t.name, 'Start': new Date(l.start).toLocaleString(), 'End': l.end? new Date(l.end).toLocaleString():'', 'Duration (min)': l.duration||0 }); } }
+      const ws2=XLSX.utils.json_to_sheet(logs); XLSX.utils.book_append_sheet(wb, ws2, 'TimeLogs');
+      const audits=[]; for(const t of state.tasks){ for(const a of (t.audit||[])){ audits.push({ 'Task': t.name, 'Action': auditActionLabel(a.action), 'By': a.by, 'When': new Date(a.at).toLocaleString(), 'Details': a.details||'' }); } }
+      const ws3=XLSX.utils.json_to_sheet(audits); XLSX.utils.book_append_sheet(wb, ws3, 'Audit');
+      const workload = state.members.map(m=> ({ Member:m, OpenTasks: state.tasks.filter(x=>x.assignedTo===m && x.status!=='complete').length }));
+      const ws4=XLSX.utils.json_to_sheet(workload); XLSX.utils.book_append_sheet(wb, ws4, 'Workload');
+      XLSX.writeFile(wb, 'task_report.xlsx'); toast('Excel report downloaded.','success');
+    }
+    function exportAuditCurrent(){ const t = auditModal._task; if(!t) return; const audits=(t.audit||[]).map(a=> ({ Action:auditActionLabel(a.action), By:a.by, When:new Date(a.at).toLocaleString(), Details:a.details||'' })); const wb=XLSX.utils.book_new(); const ws=XLSX.utils.json_to_sheet(audits); XLSX.utils.book_append_sheet(wb, ws, 'Audit'); XLSX.writeFile(wb, `${t.name.replace(/[^a-z0-9]/gi,'_')}_audit.xlsx`); }
+    async function exportPdf(){ const { jsPDF } = window.jspdf; const doc = new jsPDF(); doc.setFontSize(14); doc.text('Task Board Summary', 14, 16); doc.setFontSize(10); doc.text(`Date: ${new Date(selectedDate.value).toDateString()}`, 14, 24); let y=32; doc.setFont(undefined,'bold'); doc.text('Tasks',14,y); y+=6; doc.setFont(undefined,'normal'); const max=20; let count=0; for(const t of state.tasks){ if(count>=max) break; doc.text(`• ${t.name} [${t.priority}] — ${t.assignedTo||'Unassigned'} — ${statusLabel(t,new Date(selectedDate.value))}`, 14, y); y+=6; count++; } doc.save('task_summary.pdf'); toast('PDF summary downloaded.','success'); }
+
+    // ======= Timer / Time Tracking =======
+    let activeTimers = {}; // taskId -> startTime
+    function toggleTimer(task){ const id=task.id; if(activeTimers[id]){ const start=activeTimers[id]; const end=Date.now(); const dur=Math.round((end-start)/60000); delete activeTimers[id]; task.timeLogs.push({ start, end, duration:dur }); pushAudit(task,'timer',`Logged ${dur} min`); persist(); render(); } else { activeTimers[id]=Date.now(); toast(`Timer started: ${task.name}`,'secondary'); } }
+
+    // ======= Daily Summary (heuristic/AI-lite) =======
+    function buildDailySummary(){ const date=new Date(selectedDate.value); const todayTasks = state.tasks.filter(t=> isScheduledFor(t,date)); const completed = todayTasks.filter(t=> t.status==='complete'); const pending = todayTasks.filter(t=> t.status!=='complete'); const high = pending.filter(t=> t.priority==='high'); const lines=[]; lines.push(`# Daily Summary — ${date.toDateString()}`); lines.push(''); lines.push(`Total tasks scheduled today: ${todayTasks.length}`); lines.push(`Completed: ${completed.length}`); lines.push(`Pending: ${pending.length}`); lines.push(`High priority pending: ${high.length}`); lines.push(''); lines.push('## Top 5 Pending (by priority/time)'); const sorted=[...pending].sort((a,b)=> priorityOrder(a.priority)-priorityOrder(b.priority) || (a.timeFrom||'')<(b.timeFrom||'')?-1:1).slice(0,5); for(const t of sorted){ lines.push(`- ${t.name} (${t.priority}) — ${t.assignedTo||'Unassigned'} ${t.timeFrom? 'at '+formatTime(t.timeFrom):''}`); } lines.push(''); lines.push('## Suggestions'); for(const t of high){ if(!t.assignedTo){ const m=autoAssignHeuristic(t); if(m) lines.push(`- Consider assigning **${t.name}** to **${m}** (light workload).`); } if(!t.timeFrom && t.timeTo){ lines.push(`- Set a start time for **${t.name}** to block time effectively.`); } } return lines.join('\n'); }
+
+    // ======= Event Listeners =======
+    addTaskBtn.addEventListener('click', ()=> openTaskModal(null));
+    $('#saveTaskBtn').addEventListener('click', ()=>{ const collected = collectTaskFromModal(); if(!collected) return; const idx = state.tasks.findIndex(t=> t.id===collected.id); if(idx>=0){ const existing = state.tasks[idx]; const snapshot = { name: existing.name, days:[...(existing.days||[])], timeFrom: existing.timeFrom||'', timeTo: existing.timeTo||'', priority: existing.priority||'medium', repeat: existing.repeat||'weekly', monthlyDay: existing.monthlyDay||null, notify: !!existing.notify }; existing.name=collected.name; existing.days=collected.days; existing.timeFrom=collected.timeFrom; existing.timeTo=collected.timeTo; existing.priority=collected.priority; existing.repeat=collected.repeat; existing.monthlyDay=collected.monthlyDay; existing.notify=collected.notify; if(collected.assignedTo!==undefined){ existing.assignedTo= collected.assignedTo; existing.status = existing.assignedTo? 'assigned':'not_assigned'; } logEditAudit(existing, { ...snapshot, ...collected }); existing.updatedAt=Date.now(); toast('Task updated.','success'); } else { const t = { id: collected.id, name: collected.name, assignedTo: collected.assignedTo||'', status: collected.assignedTo? 'assigned':'not_assigned', days: collected.days, timeFrom: collected.timeFrom, timeTo: collected.timeTo, updatedAt: Date.now(), audit:[], priority: collected.priority, subtasks:[], comments:[], attachments:[], starred:false, repeat: collected.repeat, monthlyDay: collected.monthlyDay, notify: collected.notify, timeLogs:[] }; pushAudit(t,'created', `Task created with days: ${(t.days||[]).map(d=>dayNames[d]).join(', ')}; time: ${formatTime(t.timeFrom)}–${formatTime(t.timeTo)}`); state.tasks.push(t); state.order.push(t.id); toast('Task added.','success'); } persist(); taskModal.hide(); render(); });
+
+    addSubtaskBtn.addEventListener('click', ()=>{ const text=newSubtaskText.value.trim(); if(!text) return; const id=crypto.randomUUID(); const task = state.tasks.find(t=> t.id === (taskIdInput.value||'')); if(task){ task.subtasks.push({ id, text, done:false }); pushAudit(task,'edited',`Subtask added: ${text}`); persist(); openTaskModal(task); newSubtaskText.value=''; } });
+    subtasksList.addEventListener('click', (e)=>{ const del = e.target.closest('.sub-del'); const check = e.target.closest('.sub-done'); const task = state.tasks.find(t=> t.id === (taskIdInput.value||'')); if(!task) return; if(del){ const id=del.dataset.id; const s=task.subtasks.find(x=>x.id===id); task.subtasks = task.subtasks.filter(x=>x.id!==id); pushAudit(task,'edited',`Subtask removed: ${s?.text||id}`); persist(); openTaskModal(task); } if(check){ const id=check.dataset.id; const s=task.subtasks.find(x=>x.id===id); if(s){ s.done = check.checked; pushAudit(task,'edited',`Subtask ${s.done?'completed':'reopened'}: ${s.text}`); persist(); } } });
+
+    addCommentBtn.addEventListener('click', ()=>{ const text=newCommentText.value.trim(); if(!text) return; const task= state.tasks.find(t=> t.id === (taskIdInput.value||'')); if(!task) return; task.comments.push({ id: crypto.randomUUID(), text, at: Date.now(), by: state.role }); pushAudit(task,'edited',`Comment added`); persist(); openTaskModal(task); newCommentText.value=''; });
+
+    attachInput.addEventListener('change', async ()=>{ const files = Array.from(attachInput.files||[]); const task= state.tasks.find(t=> t.id === (taskIdInput.value||'')); if(!task) return; for(const f of files){ if(f.size > 100*1024){ task.attachments.push({ name: f.name, size: f.size }); } else { const b64 = await fileToDataURL(f); task.attachments.push({ name: f.name, size: f.size, b64 }); } } pushAudit(task,'edited',`${files.length} attachment(s) added`); persist(); openTaskModal(task); });
+    attachList.addEventListener('click', (e)=>{ const btn=e.target.closest('.attach-del'); if(!btn) return; const task= state.tasks.find(t=> t.id === (taskIdInput.value||'')); if(!task) return; const name=btn.dataset.name; task.attachments = task.attachments.filter(a=> a.name!==name); pushAudit(task,'edited',`Attachment removed: ${name}`); persist(); openTaskModal(task); });
+
+    function fileToDataURL(file){ return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=> resolve(r.result); r.onerror=reject; r.readAsDataURL(file); }); }
+
+    addMemberBtn.addEventListener('click', ()=>{ if(state.role!=='admin') return; memberNameInput.value=''; addMemberModal.show(); });
+    saveMemberBtn.addEventListener('click', ()=>{ const name=memberNameInput.value.trim(); if(!name){ toast('Member name is required.','danger'); return; } if(state.members.includes(name)){ toast('Member already exists.','warning'); return; } state.members.push(name); persist(); memberNameInput.value=''; addMemberModal.hide(); render(); toast('Member added.','success'); });
+    viewMembersBtn.addEventListener('click', ()=>{ if(state.role!=='admin') return; renderMemberList(); viewMembersModal.show(); });
+    memberList.addEventListener('click', (e)=>{ const btn=e.target.closest('.remove-member-btn'); if(!btn) return; const who=btn.dataset.member; const ok=confirm(`Remove member “${who}”? They will be unassigned from any tasks.`); if(!ok) return; removeMember(who); });
+
+    confirmDeleteBtn.addEventListener('click', ()=>{ const id=confirmDeleteBtn.dataset.taskId; const t=state.tasks.find(x=> x.id===id); if(t) pushAudit(t,'edited','Task deleted'); state.tasks = state.tasks.filter(t=> t.id!==id); state.order = state.order.filter(x=> x!==id); persist(); confirmDeleteModal.hide(); render(); toast('Task deleted.','secondary'); });
+
+    exportBtn.addEventListener('click', exportExcel);
+    exportPdfBtn.addEventListener('click', exportPdf);
+    exportAuditBtn.addEventListener('click', exportAuditCurrent);
+
+    adminSignInBtn.addEventListener('click', ()=>{ adminPass.value=''; adminModal.show(); });
+    supervisorSignInBtn.addEventListener('click', ()=>{ supervisorPass.value=''; supervisorModal.show(); });
+    signOutBtn.addEventListener('click', ()=>{ state.role='user'; persist(); applyRole(); render(); toast('Signed out. You are now in User mode.','secondary'); });
+
+    adminLoginConfirm.addEventListener('click', ()=>{ if(adminPass.value===ADMIN_PASS){ state.role='admin'; persist(); adminModal.hide(); applyRole(); render(); toast('Welcome, Admin!','success'); } else { toast('Invalid passcode.','danger'); } });
+    supervisorLoginConfirm.addEventListener('click', ()=>{ if(supervisorPass.value===SUPERVISOR_PASS){ state.role='supervisor'; persist(); supervisorModal.hide(); applyRole(); render(); toast('Welcome, Supervisor!','success'); } else { toast('Invalid passcode.','danger'); } });
+
+    selectedDate.addEventListener('change', render);
+    searchInput.addEventListener('input', render);
+    filterAssign.addEventListener('change', render);
+    filterPriority.addEventListener('change', render);
+    sortSelect.addEventListener('change', render);
+    onlyTodayCheck.addEventListener('change', render);
+
+    function setThemeIcon(){ themeToggleBtn.innerHTML = state.theme==='dark' ? '<i class="bi bi-brightness-high"></i>' : '<i class="bi bi-moon-stars"></i>'; }
+    function applyTheme(){ document.documentElement.setAttribute('data-bs-theme', state.theme); setThemeIcon(); updateDashboard(new Date(selectedDate.value)); }
+    themeToggleBtn.addEventListener('click', ()=>{ state.theme = state.theme==='light'? 'dark':'light'; persist(); applyTheme(); render(); });
+
+    compactModeSwitch.addEventListener('change', ()=>{ render(); });
+
+    dailySummaryBtn.addEventListener('click', ()=>{ summaryText.textContent = buildDailySummary(); summaryModal.show(); });
+    copySummaryBtn.addEventListener('click', ()=>{ navigator.clipboard.writeText(summaryText.textContent||''); toast('Summary copied.','secondary'); });
+
+    adminPass.addEventListener('keydown', (e)=>{ if(e.key==='Enter') adminLoginConfirm.click(); });
+    supervisorPass.addEventListener('keydown', (e)=>{ if(e.key==='Enter') supervisorLoginConfirm.click(); });
+
+    function initDate(){ const today=new Date(); const yyyy=today.getFullYear(); const mm=String(today.getMonth()+1).padStart(2,'0'); const dd=String(today.getDate()).padStart(2,'0'); selectedDate.value = `${yyyy}-${mm}-${dd}`; }
+    $('#year').textContent = new Date().getFullYear();
+    initDate(); applyRole(); applyTheme(); render();
+  })();
+  </script>
+</body>
 </html>
