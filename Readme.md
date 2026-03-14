@@ -110,18 +110,7 @@ AI-TaskFlow
 ├── public
 │
 ├── src
-│   ├── components
-│   │   ├── Navbar.jsx
-│   │   ├── TaskCard.jsx
-│   │   ├── Dashboard.jsx
-│   │   ├── TaskModal.jsx
-│   │   └── MemberModal.jsx
-│   │
-│   ├── pages
-│   │   └── TaskBoard.jsx
-│   │
-│   ├── utils
-│   │   └── storage.js
+│   ├── index.html
 │   │
 │   ├── App.jsx
 │   └── main.jsx
