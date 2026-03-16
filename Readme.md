@@ -120,93 +120,21 @@ AI-TaskFlow
 
 ---
 
-# 🚀 Installation Guide
 
-### 1️⃣ Clone Repository
-
-```bash
-git clone https://github.com/yourusername/ai-taskflow.git
-```
-
----
-
-### 2️⃣ Navigate to Project
-
-```bash
-cd ai-taskflow
-```
-
----
-
-### 3️⃣ Install Dependencies
-
-```bash
-npm install
-```
-
----
-
-### 4️⃣ Run Development Server
-
-```bash
-npm run dev
-```
-
-Application will run on:
-
-```
-http://localhost:5173
-```
-
----
 
 # 📊 Screenshots
 
-**
-
 ### Dashboard
-
-```
-/screenshots/dashboard.png
-```
 
 ### Task Board
 
-```
-/screenshots/taskboard.png
-```
-
 ### Analytics
 
-```
-/screenshots/analytics.png
-```
 
----
 
 # 🔮 Future Enhancements
 
 To make the system **enterprise-ready**, the following improvements are planned:
-
-### Backend Integration
-
-* Node.js API
-* MongoDB/PostgreSQL database
-* REST APIs
-
-### Enterprise Features
-
-* Role-based authentication
-* Multi-team task management
-* Notifications & alerts
-
-### AI Integration
-
-* AI task prioritization
-* Workload prediction
-* Productivity analytics
-
----
 
 # 🧠 Enterprise Use Case
 
@@ -230,60 +158,7 @@ Using **AI TaskFlow**, managers can:
 
 ---
 
-# 🎓 Academic Relevance (MBA Project)
-
-This project demonstrates the integration of:
-
-* **Business Process Optimization**
-* **Data Analytics**
-* **Workflow Automation**
-* **Product Design Thinking**
-
-Applicable Subjects:
-
-* Entrepreneurship
-* Business Analytics
-* Operations Management
-* Information Systems
-
----
 
 # 👨‍💻 Author
 
 **Srujan Kinjawadekar**
-
-MBA – Data Science
-
-Skills Demonstrated:
-
-* React Application Development
-* Data Visualization
-* Workflow Automation
-* Business Intelligence Systems
-
----
-
-# ⭐ GitHub Topics
-
-Add these topics to your repository:
-
-```
-react
-task-management
-workflow-automation
-kanban-board
-analytics-dashboard
-productivity-tools
-mba-project
-enterprise-project
-```
-
----
-
-# 📜 License
-
-This project is created for:
-
-* Educational purposes
-* Internal workflow optimization demonstration
-* Portfolio showcase
