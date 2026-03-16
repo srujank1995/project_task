@@ -162,7 +162,7 @@ http://localhost:5173
 
 # 📊 Screenshots
 
-*(Add UI screenshots here)*
+**
 
 ### Dashboard
 
