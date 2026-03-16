@@ -117,20 +117,15 @@ AI-TaskFlow
 │
 └── README.md
 ```
-
----
-
-
-
 # 📊 Screenshots
 
-### Dashboard
-
+### Dashboard  
+*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115642.png*
 ### Task Board
-
+*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115808.png*
 ### Analytics
-
-
+*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115852.png*
+*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115924.png*
 
 # 🔮 Future Enhancements
 
