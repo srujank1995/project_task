@@ -1,159 +1,254 @@
-# 🚀 AI TaskFlow
+# 🚀 Company Client Task Dashboard
 
-### Enterprise Smart Task Management & Productivity Analytics System
-
-<p align="center">
-
-![React](https://img.shields.io/badge/React-18-blue?logo=react)
-![Vite](https://img.shields.io/badge/Vite-BuildTool-purple?logo=vite)
-![Bootstrap](https://img.shields.io/badge/Bootstrap-UI-7952B3?logo=bootstrap)
-![ChartJS](https://img.shields.io/badge/Charts-ChartJS-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-
-</p>
+A modern, feature-rich **Task Management Dashboard** designed to streamline team collaboration, task tracking, and productivity monitoring. Built using **HTML, Bootstrap, and JavaScript**, this project provides a clean UI with powerful functionality for real-world business use.
 
 ---
 
-# 📌 Project Overview
+## 📌 Overview
 
-**AI TaskFlow** is a modern **enterprise-style task management dashboard** designed to streamline operational workflows and improve team productivity.
+The **Client Task Dashboard** helps organizations:
 
-The system enables organizations to:
-
-✔ Organize daily operational tasks
-✔ Assign work to team members
-✔ Track task completion status
-✔ Monitor team productivity through analytics
-✔ Export operational reports
-
-This project was developed as a **value addition initiative for internal company workflow optimization**.
+* 📋 Manage daily tasks efficiently
+* 👥 Assign work to team members
+* 📊 Monitor performance with analytics
+* ⏱ Track time and productivity
+* 📁 Export reports (Excel/PDF)
+* 🔍 Maintain audit trails for accountability
 
 ---
 
-# 🎯 Business Problem
+## ✨ Features
 
-Many organizations track operational tasks using:
+### 🧑‍💼 Role-Based Access
 
-* Excel sheets
-* Email communication
-* Messaging tools
-
-This causes problems such as:
-
-❌ Lack of task visibility
-❌ Poor workload distribution
-❌ Difficulty tracking progress
-❌ No centralized monitoring system
-
-**AI TaskFlow solves these problems by providing a centralized task monitoring dashboard.**
+* **User** – View & complete assigned tasks
+* **Supervisor** – Manage tasks & monitor progress
+* **Admin** – Full control (tasks, members, reports)
 
 ---
 
-# 💼 Business Value to the Organization
+### 📋 Task Management
 
-| Feature                  | Business Benefit                 |
-| ------------------------ | -------------------------------- |
-| Task Monitoring          | Improves operational visibility  |
-| Team Assignment          | Better workload management       |
-| Productivity Analytics   | Data-driven management decisions |
-| Report Export            | Easy reporting for leadership    |
-| Lightweight Architecture | Easy internal deployment         |
+* Create, edit, and delete tasks
+* Assign tasks to team members
+* Set:
+
+  * Priority (High / Medium / Low)
+  * Time slots
+  * Recurring schedules (Weekly / Monthly)
+* Mark tasks as **Completed / Reopen**
 
 ---
 
-# 🖥️ System Architecture
+### 📅 Multiple Views
+
+* 📆 Day View
+* 📊 Week View
+* 🗓 Month View
+* 📃 List View
+
+---
+
+### 📊 Dashboard Analytics
+
+* Total Tasks
+* Completed Tasks (Today)
+* Assigned vs Unassigned Tasks
+* Workload distribution charts
+
+---
+
+### 🔍 Advanced Filters & Search
+
+* Filter by:
+
+  * Assignment status
+  * Priority
+  * Scheduled tasks
+* Search tasks instantly
+
+---
+
+### 📝 Subtasks & Comments
+
+* Add checklist items
+* Track progress
+* Comment system for collaboration
+
+---
+
+### ⏱ Time Tracking
+
+* Start/Stop timer per task
+* Track total time spent
+* Export time logs
+
+---
+
+### 📎 Attachments
+
+* Upload files (stored locally)
+* Manage task-related documents
+
+---
+
+### 🔔 Notifications
+
+* Enable reminders for scheduled tasks
+* Browser notifications support
+
+---
+
+### 📤 Export Options
+
+* Export data to:
+
+  * 📊 Excel
+  * 📄 PDF
+* Includes:
+
+  * Tasks
+  * Audit logs
+  * Workload data
+
+---
+
+### 📜 Audit Trail
+
+* Track:
+
+  * Task creation
+  * Edits
+  * Assignment changes
+  * Completion logs
+
+---
+
+### 🎨 UI/UX Features
+
+* Responsive design
+* Dark/Light theme toggle
+* Drag & drop task reordering
+* Compact mode for mobile
+
+---
+
+## 🛠️ Tech Stack
+
+| Technology           | Usage              |
+| -------------------- | ------------------ |
+| HTML5                | Structure          |
+| CSS3 / Bootstrap 5   | Styling & UI       |
+| JavaScript (Vanilla) | Logic              |
+| Chart.js             | Data visualization |
+| SortableJS           | Drag & drop        |
+| SheetJS (XLSX)       | Excel export       |
+| jsPDF                | PDF export         |
+
+---
+
+## 📂 Project Structure
 
 ```
-                User Interface
-           (React + Bootstrap UI)
-                     │
-                     ▼
-            Component Architecture
-   (Navbar, TaskBoard, TaskCard, Dashboard)
-                     │
-                     ▼
-              State Management
-               (React Hooks)
-                     │
-                     ▼
-                 Data Layer
-               (LocalStorage)
-                     │
-                     ▼
-             Reporting & Analytics
-        (ChartJS + Excel + PDF Reports)
+📦 task-dashboard
+ ┣ 📜 index.html
+ ┣ 📜 README.md
+ ┗ 📂 assets (optional)
 ```
 
 ---
 
-# ⚙️ Technology Stack
+## ⚙️ Installation & Setup
 
-| Technology          | Purpose                     |
-| ------------------- | --------------------------- |
-| **React.js**        | Frontend Framework          |
-| **Vite**            | Build Tool                  |
-| **Bootstrap**       | UI Design                   |
-| **Bootstrap Icons** | Icons                       |
-| **Chart.js**        | Data Visualization          |
-| **SortableJS**      | Drag-and-drop task movement |
-| **SheetJS (xlsx)**  | Excel export                |
-| **jsPDF**           | PDF generation              |
-| **LocalStorage**    | Data persistence            |
+1. Clone the repository:
+
+```bash
+git clone https://github.com/your-username/task-dashboard.git
+```
+
+2. Navigate to project folder:
+
+```bash
+cd task-dashboard
+```
+
+3. Run locally:
+
+* Open `index.html` in browser
+  OR
+* Use Live Server (recommended)
 
 ---
 
-# 📂 Project Structure
+## 🔐 Demo Credentials
 
-```
-AI-TaskFlow
-│
-├── public
-│
-├── src
-│   ├── index.html
-│   │
-│   ├── App.jsx
-│   └── main.jsx
-│
-└── README.md
-```
-# 📊 Screenshots
+| Role       | Passcode        |
+| ---------- | --------------- |
+| Admin      | `ADMIN123`      |
+| Supervisor | `SUPERVISOR123` |
 
-### Dashboard  
-*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115642.png*
-### Task Board
-*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115808.png*
-### Analytics
-*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115852.png*
-*https://github.com/srujank1995/project_task/blob/main/Screenshot%202026-03-16%20115924.png*
-
-# 🔮 Future Enhancements
-
-To make the system **enterprise-ready**, the following improvements are planned:
-
-# 🧠 Enterprise Use Case
-
-Example Department:
-
-**Data Operations Team**
-
-Daily activities:
-
-* Data validation
-* File processing
-* Quality checks
-* Reporting
-
-Using **AI TaskFlow**, managers can:
-
-✔ Assign tasks
-✔ Track progress
-✔ Identify bottlenecks
-✔ Analyze productivity
+> ⚠️ Note: Authentication is frontend-only (for demo purposes)
 
 ---
 
+## 📈 Future Enhancements
 
-# 👨‍💻 Author
+* 🔗 Backend integration (Node.js / Django)
+* 🤖 AI-powered task recommendations
+* ☁️ Cloud storage for attachments
+* 📱 Mobile app version
+* 📊 Advanced analytics dashboard
+* 🔄 API integration (Slack, Teams, Email)
 
-**Srujan Kinjawadekar**
+---
+
+## 💡 Use Cases
+
+* Corporate task management
+* Client project tracking
+* Operations & workflow monitoring
+* MBA / academic projects
+* Startup productivity tools
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repo
+2. Create a new branch
+3. Make changes
+4. Submit a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+---
+
+## 👨‍💻 Author
+
+**Srujan K**
+---
+
+## ⭐ Support
+
+If you like this project:
+
+* ⭐ Star the repository
+* 🍴 Fork it
+* 🛠 Improve it
+
+---
+
+## 📬 Contact
+
+For queries or collaboration:
+📧 [srujankinjawadekar1@gmail.com](mailto:srujankinjawadekar1@gmail.com)
+
+---
+
+> 🚀 *This project is a production-ready frontend dashboard that can be extended into a full-stack enterprise solution.*
